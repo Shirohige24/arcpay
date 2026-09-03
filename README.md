@@ -1,10 +1,11 @@
-\# ArcPay
+# ArcPay
+
+A lightweight USDC payment dApp built on Arc Testnet.
+
+[🚀 Live Demo](https://arcpay-arc.vercel.app/) • [🔎 Verified Testnet Transaction](https://testnet.arcscan.app/tx/0x1864f2e5c3f3e4423d83c9ca2e93e5fc461ef5dbbd107449f1b1b5f70a63037b)
 
 ![ArcPay Demo](docs/arcpay-demo.png)
 
-
-
-A lightweight USDC payment application built on \*\*Arc Testnet\*\*.
 
 
 
