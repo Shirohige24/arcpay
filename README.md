@@ -1,5 +1,7 @@
 \# ArcPay
 
+![ArcPay Demo](docs/arcpay-demo.png)
+
 
 
 A lightweight USDC payment application built on \*\*Arc Testnet\*\*.
