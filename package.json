@@ -1,0 +1,28 @@
+{
+  "name": "arcpay",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shirohige24/arcpay.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Shirohige24/arcpay/issues"
+  },
+  "homepage": "https://github.com/Shirohige24/arcpay#readme",
+  "dependencies": {
+    "@circle-fin/adapter-viem-v2": "^1.17.1",
+    "@circle-fin/app-kit": "^1.14.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "viem": "^2.56.3"
+  }
+}
