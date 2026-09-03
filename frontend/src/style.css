@@ -118,3 +118,67 @@ h1 {
   color: #8f9ab5;
   font-size: 14px;
 }
+.payment-panel {
+  margin-top: 22px;
+  padding: 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.payment-panel h2 {
+  margin: 0 0 20px;
+  font-size: 22px;
+}
+
+.payment-panel label {
+  display: block;
+  margin: 14px 0 7px;
+  color: #aab2c8;
+  font-size: 14px;
+}
+
+.payment-panel input {
+  display: block;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0b1020;
+  color: white;
+  outline: none;
+}
+
+.payment-panel input:focus {
+  border-color: #818cf8;
+}
+
+#sendPayment {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  border: 0;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#sendPayment:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tx-panel {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tx-panel p {
+  margin-top: 0;
+}
+
+.tx-panel a {
+  color: #a5b4fc;
+  font-weight: 700;
+}
