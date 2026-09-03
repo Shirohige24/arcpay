@@ -199,3 +199,47 @@ h1 {
     flex-direction: column;
   }
 }
+.wallet-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.wallet-buttons .primary-button {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+#walletConnectButton {
+  background: #151b2f;
+  color: #ffffff;
+}
+
+#connectButton {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.wallet-buttons .primary-button:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+
+.wallet-buttons .primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+@media (max-width: 640px) {
+  .wallet-buttons {
+    grid-template-columns: 1fr;
+  }
+}
