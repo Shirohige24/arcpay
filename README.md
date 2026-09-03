@@ -104,3 +104,17 @@ Clone the repository:
 
 git clone https://github.com/Shirohige24/arcpay.git
 
+## Live Testnet Transaction
+
+ArcPay has been tested with a real onchain payment on Arc Testnet.
+
+**Test Payment:** 0.01 USDC
+
+**Transaction Hash:**
+`0x1864f2e5c3f3e4423d83c9ca2e93e5fc461ef5dbbd107449f1b1b5f70a63037b`
+
+[View transaction on ArcScan](https://testnet.arcscan.app/tx/0x1864f2e5c3f3e4423d83c9ca2e93e5fc461ef5dbbd107449f1b1b5f70a63037b)
+
+This transaction demonstrates the complete ArcPay payment flow:
+
+Wallet → ArcPay → MetaMask approval → Arc Testnet → Onchain confirmation
