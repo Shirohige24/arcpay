@@ -9,19 +9,21 @@ import {
   parseEther,
 } from 'viem'
 
+type Eip1193Provider = {
+  request: (args: {
+    method: string
+    params?: unknown[] | object[]
+  }) => Promise<any>
+  on?: (event: string, callback: (...args: any[]) => void) => void
+  removeListener?: (
+    event: string,
+    callback: (...args: any[]) => void
+  ) => void
+}
+
 declare global {
   interface Window {
-    ethereum?: {
-      request: (args: {
-        method: string
-        params?: unknown[] | object[]
-      }) => Promise<any>
-      on?: (event: string, callback: (...args: any[]) => void) => void
-      removeListener?: (
-        event: string,
-        callback: (...args: any[]) => void
-      ) => void
-    }
+    ethereum?: Eip1193Provider
   }
 }
 
@@ -62,6 +64,8 @@ const publicClient = createPublicClient({
 })
 
 let connectedAddress: `0x${string}` | null = null
+let activeProvider: Eip1193Provider | null = null
+let activeConnectionType: 'browser' | 'walletconnect' | null = null
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <main class="app-shell">
@@ -72,15 +76,15 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <p class="subtitle">Simple USDC payments powered by Arc.</p>
 
       <div class="wallet-buttons">
-  <button id="connectButton" class="primary-button">
-    Browser Wallet
-  </button>
+        <button id="connectButton" class="primary-button">
+          Browser Wallet
+        </button>
 
-  <button id="walletConnectButton" class="primary-button">
-    WalletConnect / Trust Wallet
-  </button>
-</div>
-        
+        <button id="walletConnectButton" class="primary-button">
+          WalletConnect / Trust Wallet
+        </button>
+      </div>
+
       <div id="walletPanel" class="wallet-panel hidden">
         <div>
           <span class="label">Connected Wallet</span>
@@ -91,6 +95,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <span class="label">Balance</span>
           <strong id="walletBalance">- USDC</strong>
         </div>
+
+        <button id="disconnectButton" class="disconnect-button">
+          Disconnect Wallet
+        </button>
       </div>
 
       <div id="paymentPanel" class="payment-panel hidden">
@@ -131,6 +139,9 @@ const connectButton =
 const walletConnectButton =
   document.querySelector<HTMLButtonElement>('#walletConnectButton')!
 
+const disconnectButton =
+  document.querySelector<HTMLButtonElement>('#disconnectButton')!
+
 const sendButton =
   document.querySelector<HTMLButtonElement>('#sendButton')!
 
@@ -164,16 +175,37 @@ function getEthereum() {
   return window.ethereum
 }
 
-async function ensureArcNetwork() {
-  const ethereum = getEthereum()
+function updateConnectionButtons() {
+  connectButton.textContent =
+    activeConnectionType === 'browser'
+      ? 'Wallet Connected'
+      : 'Browser Wallet'
 
-  if (!ethereum) {
-    throw new Error(
-      'No compatible wallet detected. Open ArcPay in Chrome/Brave with MetaMask or another EVM wallet installed.'
-    )
-  }
+  walletConnectButton.textContent =
+    activeConnectionType === 'walletconnect'
+      ? 'Wallet Connected'
+      : 'WalletConnect / Trust Wallet'
+}
 
-  const currentChainId = await ethereum.request({
+function resetConnectedUi(message = 'Wallet disconnected.') {
+  connectedAddress = null
+  activeProvider = null
+  activeConnectionType = null
+
+  walletPanel.classList.add('hidden')
+  paymentPanel.classList.add('hidden')
+  txPanel.classList.add('hidden')
+
+  walletAddress.textContent = '-'
+  walletBalance.textContent = '- USDC'
+  txPanel.innerHTML = ''
+
+  updateConnectionButtons()
+  setStatus(message)
+}
+
+async function ensureArcNetwork(provider: Eip1193Provider) {
+  const currentChainId = await provider.request({
     method: 'eth_chainId',
   })
 
@@ -185,7 +217,7 @@ async function ensureArcNetwork() {
   }
 
   try {
-    await ethereum.request({
+    await provider.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: ARC_CHAIN_HEX }],
     })
@@ -193,7 +225,7 @@ async function ensureArcNetwork() {
     const code = switchError?.code
 
     if (code === 4902 || code === -32603) {
-      await ethereum.request({
+      await provider.request({
         method: 'wallet_addEthereumChain',
         params: [
           {
@@ -234,24 +266,20 @@ function showConnectedWallet(address: `0x${string}`) {
 
   walletPanel.classList.remove('hidden')
   paymentPanel.classList.remove('hidden')
+  txPanel.classList.add('hidden')
 
-  connectButton.textContent = 'Wallet Connected'
-  setStatus('Connected to Arc Testnet.')
+  updateConnectionButtons()
 }
 
 function readableWalletError(error: any) {
   const code = error?.code
 
   if (code === 4001) {
-    return 'Wallet connection was rejected by the user.'
+    return 'Wallet request was rejected by the user.'
   }
 
   if (code === -32002) {
-    return 'A wallet request is already pending. Please open your wallet extension.'
-  }
-
-  if (error?.message?.includes('No compatible wallet')) {
-    return error.message
+    return 'A wallet request is already pending. Please open your wallet.'
   }
 
   return error?.message
@@ -264,6 +292,8 @@ async function connectWithWalletConnect() {
     setStatus('WalletConnect Project ID is missing.')
     return
   }
+
+  walletConnectButton.disabled = true
 
   try {
     setStatus('Opening WalletConnect...')
@@ -285,27 +315,81 @@ async function connectWithWalletConnect() {
 
     await walletConnectProvider.connect()
 
+    activeProvider = walletConnectProvider as Eip1193Provider
+    activeConnectionType = 'walletconnect'
+
+    await ensureArcNetwork(activeProvider)
+
+    const accounts =
+      (await activeProvider.request({
+        method: 'eth_accounts',
+      })) as string[]
+
     const address =
-      walletConnectProvider.accounts?.[0] as `0x${string}`
+      (accounts?.[0] ??
+        walletConnectProvider.accounts?.[0]) as `0x${string}` | undefined
 
     if (!address) {
       throw new Error('No wallet account returned.')
     }
 
-    connectedAddress = address
-
     showConnectedWallet(address)
     await refreshBalance()
 
-    setStatus('Connected through WalletConnect.')
+    walletConnectProvider.on?.(
+      'accountsChanged',
+      async (accounts: string[]) => {
+        if (!accounts.length) {
+          resetConnectedUi()
+          return
+        }
+
+        const nextAddress = accounts[0] as `0x${string}`
+        showConnectedWallet(nextAddress)
+
+        try {
+          await refreshBalance()
+        } catch {
+          setStatus('Wallet connected, but balance could not be loaded.')
+        }
+      }
+    )
+
+    walletConnectProvider.on?.('chainChanged', async () => {
+      if (
+        activeConnectionType !== 'walletconnect' ||
+        !activeProvider ||
+        !connectedAddress
+      ) {
+        return
+      }
+
+      try {
+        await ensureArcNetwork(activeProvider)
+        await refreshBalance()
+        setStatus('Connected through WalletConnect on Arc Testnet.')
+      } catch (error: any) {
+        setStatus(readableWalletError(error))
+      }
+    })
+
+    walletConnectProvider.on?.('disconnect', () => {
+      resetConnectedUi()
+      walletConnectProvider = null
+    })
+
+    setStatus('Connected through WalletConnect on Arc Testnet.')
   } catch (error: any) {
     console.error('WalletConnect error:', error)
 
-    setStatus(
+    walletConnectProvider = null
+    resetConnectedUi(
       error?.message
         ? `WalletConnect error: ${error.message}`
         : 'WalletConnect connection failed.'
     )
+  } finally {
+    walletConnectButton.disabled = false
   }
 }
 
@@ -314,7 +398,7 @@ async function connectWallet() {
 
   if (!ethereum) {
     setStatus(
-      'No wallet detected. Please open ArcPay in Chrome/Brave with MetaMask or another EVM wallet installed.'
+      'No browser wallet detected. Install MetaMask or another compatible EVM wallet, or use WalletConnect.'
     )
     return
   }
@@ -332,27 +416,53 @@ async function connectWallet() {
       throw new Error('No wallet account was selected.')
     }
 
-    await ensureArcNetwork()
+    activeProvider = ethereum
+    activeConnectionType = 'browser'
+
+    await ensureArcNetwork(ethereum)
 
     const address = accounts[0] as `0x${string}`
 
     showConnectedWallet(address)
     await refreshBalance()
+
+    setStatus('Connected to Arc Testnet.')
   } catch (error: any) {
     console.error('Wallet connection error:', error)
-
-    connectedAddress = null
-    connectButton.textContent = 'Connect Wallet'
-    setStatus(readableWalletError(error))
+    resetConnectedUi(readableWalletError(error))
   } finally {
     connectButton.disabled = false
+    updateConnectionButtons()
+  }
+}
+
+async function disconnectWallet() {
+  disconnectButton.disabled = true
+
+  try {
+    if (
+      activeConnectionType === 'walletconnect' &&
+      walletConnectProvider
+    ) {
+      await walletConnectProvider.disconnect()
+      walletConnectProvider = null
+    }
+
+    resetConnectedUi()
+  } catch (error: any) {
+    console.error('Disconnect error:', error)
+    setStatus(
+      error?.message
+        ? `Disconnect failed: ${error.message}`
+        : 'Could not disconnect wallet.'
+    )
+  } finally {
+    disconnectButton.disabled = false
   }
 }
 
 async function sendPayment() {
-  const ethereum = getEthereum()
-
-  if (!ethereum || !connectedAddress) {
+  if (!activeProvider || !connectedAddress) {
     setStatus('Connect your wallet first.')
     return
   }
@@ -381,13 +491,13 @@ async function sendPayment() {
   txPanel.classList.add('hidden')
 
   try {
-    await ensureArcNetwork()
+    await ensureArcNetwork(activeProvider)
 
     const value = parseEther(amount)
 
     setStatus('Confirm the payment in your wallet...')
 
-    const txHash = await ethereum.request({
+    const txHash = await activeProvider.request({
       method: 'eth_sendTransaction',
       params: [
         {
@@ -442,15 +552,14 @@ async function sendPayment() {
 
 connectButton.addEventListener('click', connectWallet)
 walletConnectButton.addEventListener('click', connectWithWalletConnect)
+disconnectButton.addEventListener('click', disconnectWallet)
 sendButton.addEventListener('click', sendPayment)
 
 window.ethereum?.on?.('accountsChanged', async (accounts: string[]) => {
+  if (activeConnectionType !== 'browser') return
+
   if (!accounts.length) {
-    connectedAddress = null
-    walletPanel.classList.add('hidden')
-    paymentPanel.classList.add('hidden')
-    connectButton.textContent = 'Connect Wallet'
-    setStatus('Wallet disconnected.')
+    resetConnectedUi()
     return
   }
 
@@ -465,10 +574,16 @@ window.ethereum?.on?.('accountsChanged', async (accounts: string[]) => {
 })
 
 window.ethereum?.on?.('chainChanged', async () => {
-  if (!connectedAddress) return
+  if (
+    activeConnectionType !== 'browser' ||
+    !activeProvider ||
+    !connectedAddress
+  ) {
+    return
+  }
 
   try {
-    await ensureArcNetwork()
+    await ensureArcNetwork(activeProvider)
     await refreshBalance()
     setStatus('Connected to Arc Testnet.')
   } catch (error: any) {
