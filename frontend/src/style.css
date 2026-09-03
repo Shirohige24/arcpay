@@ -182,3 +182,20 @@ h1 {
   color: #a5b4fc;
   font-weight: 700;
 }
+.wallet-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.wallet-buttons .primary-button {
+  flex: 1;
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (max-width: 640px) {
+  .wallet-buttons {
+    flex-direction: column;
+  }
+}
