@@ -43,8 +43,8 @@ button {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 70px 20px;
+  align-items: center;
+  padding: 24px;
 }
 
 .card {
