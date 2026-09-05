@@ -1,5 +1,6 @@
 import './style.css'
 import { EthereumProvider } from '@walletconnect/ethereum-provider'
+import QRCode from 'qrcode'
 
 import {
   createPublicClient,
@@ -125,6 +126,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
             readonly
           />
 
+          <img
+            id="paymentQrCode"
+            class="payment-qr hidden"
+            alt="ArcPay payment QR code"
+          />
+
           <button id="copyPaymentLinkButton" class="primary-button">
             Copy Link
           </button>
@@ -199,6 +206,9 @@ const requestAmountInput =
 const paymentLinkOutput =
   document.querySelector<HTMLInputElement>('#paymentLinkOutput')!
 
+const paymentQrCode =
+  document.querySelector<HTMLImageElement>('#paymentQrCode')!
+
 const txPanel =
   document.querySelector<HTMLDivElement>('#txPanel')!
 
@@ -250,6 +260,8 @@ function resetConnectedUi(message = 'Wallet disconnected.') {
   walletBalance.textContent = '- USDC'
   requestAmountInput.value = ''
   paymentLinkOutput.value = ''
+  paymentQrCode.removeAttribute('src')
+  paymentQrCode.classList.add('hidden')
   txPanel.innerHTML = ''
 
   updateConnectionButtons()
@@ -515,7 +527,7 @@ async function disconnectWallet() {
 }
 
 
-function createPaymentLink() {
+async function createPaymentLink() {
   if (!connectedAddress) {
     setStatus('Connect your wallet first.')
     return
@@ -532,10 +544,27 @@ function createPaymentLink() {
   url.searchParams.set('to', connectedAddress)
   url.searchParams.set('amount', amount)
 
-  paymentLinkOutput.value = url.toString()
-  paymentLinkResult.classList.remove('hidden')
+  const paymentLink = url.toString()
 
-  setStatus('Payment link created. Share it with the person who will pay you.')
+  paymentLinkOutput.value = paymentLink
+  paymentLinkResult.classList.remove('hidden')
+  paymentQrCode.classList.add('hidden')
+
+  try {
+    const qrDataUrl = await QRCode.toDataURL(paymentLink, {
+      width: 240,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+    })
+
+    paymentQrCode.src = qrDataUrl
+    paymentQrCode.classList.remove('hidden')
+
+    setStatus('Payment link and QR code created. Share either one to receive payment.')
+  } catch (error) {
+    console.error('QR code error:', error)
+    setStatus('Payment link created, but the QR code could not be generated.')
+  }
 }
 
 async function copyPaymentLink() {
