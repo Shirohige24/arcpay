@@ -508,27 +508,47 @@ async function connectWallet() {
 }
 
 async function disconnectWallet() {
-  disconnectButton.disabled = true
-
   try {
+    if (
+      activeConnectionType === 'browser' &&
+      activeProvider &&
+      typeof activeProvider.request === 'function'
+    ) {
+      try {
+        await activeProvider.request({
+          method: 'wallet_revokePermissions',
+          params: [{ eth_accounts: {} }],
+        })
+      } catch (error) {
+        console.warn('Wallet permission revoke is not supported by this wallet:', error)
+      }
+    }
+
     if (
       activeConnectionType === 'walletconnect' &&
       walletConnectProvider
     ) {
-      await walletConnectProvider.disconnect()
-      walletConnectProvider = null
+      try {
+        await walletConnectProvider.disconnect()
+      } catch (error) {
+        console.warn('WalletConnect disconnect failed:', error)
+      }
     }
-
-    resetConnectedUi()
-  } catch (error: any) {
-    console.error('Disconnect error:', error)
-    setStatus(
-      error?.message
-        ? `Disconnect failed: ${error.message}`
-        : 'Could not disconnect wallet.'
-    )
   } finally {
-    disconnectButton.disabled = false
+    activeProvider = null
+    activeConnectionType = null
+    connectedAddress = null
+    walletConnectProvider = null
+
+    walletAddress.textContent = '-'
+    walletBalance.textContent = '-'
+
+    paymentPanel.classList.add('hidden')
+    paymentLinkPanel.classList.add('hidden')
+
+    walletConnectButton.disabled = false
+
+    setStatus('Wallet disconnected.')
   }
 }
 
