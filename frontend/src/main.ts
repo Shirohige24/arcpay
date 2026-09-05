@@ -365,7 +365,7 @@ async function connectWithWalletConnect() {
 
     walletConnectProvider = await EthereumProvider.init({
       projectId: WALLETCONNECT_PROJECT_ID,
-      optionalChains: [ARC_CHAIN_ID],
+      chains: [ARC_CHAIN_ID],
       showQrModal: true,
       rpcMap: {
         [ARC_CHAIN_ID]: ARC_RPC,
