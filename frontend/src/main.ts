@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import {
   createPublicClient,
   defineChain,
+  encodeFunctionData,
   formatEther,
   http,
   parseEther,
@@ -31,6 +32,7 @@ const ARC_CHAIN_ID = 5042002
 const ARC_CHAIN_HEX = `0x${ARC_CHAIN_ID.toString(16)}`
 const ARC_RPC = 'https://rpc.testnet.arc.network'
 const ARC_EXPLORER = 'https://testnet.arcscan.app'
+const MULTISEND_CONTRACT = '0xAB147D7269dAe842D01A0985Ae62208A1A4f0476'
 
 
 
@@ -156,6 +158,35 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </button>
       </div>
 
+      <div id="multiSendPanel" class="payment-panel hidden">
+        <h2>Multi-Send</h2>
+        <p class="label">Send different USDC amounts to 3 wallets in one transaction.</p>
+
+        <label for="multiRecipient1">Wallet 1</label>
+        <input id="multiRecipient1" type="text" placeholder="0x..." autocomplete="off" />
+        <label for="multiAmount1">Amount 1</label>
+        <input id="multiAmount1" type="number" min="0" step="0.000001" placeholder="0.01" />
+
+        <label for="multiRecipient2">Wallet 2</label>
+        <input id="multiRecipient2" type="text" placeholder="0x..." autocomplete="off" />
+        <label for="multiAmount2">Amount 2</label>
+        <input id="multiAmount2" type="number" min="0" step="0.000001" placeholder="0.02" />
+
+        <label for="multiRecipient3">Wallet 3</label>
+        <input id="multiRecipient3" type="text" placeholder="0x..." autocomplete="off" />
+        <label for="multiAmount3">Amount 3</label>
+        <input id="multiAmount3" type="number" min="0" step="0.000001" placeholder="0.03" />
+
+        <div class="balance-row">
+          <span class="label">Total</span>
+          <strong id="multiTotal">0 USDC</strong>
+        </div>
+
+        <button id="multiSendButton" class="primary-button">
+          Send to All — 1 Transaction
+        </button>
+      </div>
+
       <div id="txPanel" class="tx-panel hidden"></div>
 
       <p id="status" class="status">Ready to connect.</p>
@@ -193,6 +224,29 @@ const paymentLinkResult =
 
 const paymentPanel =
   document.querySelector<HTMLDivElement>('#paymentPanel')!
+
+const multiSendPanel =
+  document.querySelector<HTMLDivElement>('#multiSendPanel')!
+
+const multiSendButton =
+  document.querySelector<HTMLButtonElement>('#multiSendButton')!
+
+const multiRecipient1 =
+  document.querySelector<HTMLInputElement>('#multiRecipient1')!
+const multiRecipient2 =
+  document.querySelector<HTMLInputElement>('#multiRecipient2')!
+const multiRecipient3 =
+  document.querySelector<HTMLInputElement>('#multiRecipient3')!
+
+const multiAmount1 =
+  document.querySelector<HTMLInputElement>('#multiAmount1')!
+const multiAmount2 =
+  document.querySelector<HTMLInputElement>('#multiAmount2')!
+const multiAmount3 =
+  document.querySelector<HTMLInputElement>('#multiAmount3')!
+
+const multiTotal =
+  document.querySelector<HTMLElement>('#multiTotal')!
 
 const requestAmountInput =
   document.querySelector<HTMLInputElement>('#requestAmount')!
@@ -242,6 +296,7 @@ function resetConnectedUi(message = 'Wallet disconnected.') {
   walletPanel.classList.add('hidden')
   paymentLinkPanel.classList.add('hidden')
   paymentPanel.classList.add('hidden')
+  multiSendPanel.classList.add('hidden')
   txPanel.classList.add('hidden')
   paymentLinkResult.classList.add('hidden')
 
@@ -252,6 +307,13 @@ function resetConnectedUi(message = 'Wallet disconnected.') {
   paymentQrCode.removeAttribute('src')
   paymentQrCode.classList.add('hidden')
   txPanel.innerHTML = ''
+  multiRecipient1.value = ''
+  multiRecipient2.value = ''
+  multiRecipient3.value = ''
+  multiAmount1.value = ''
+  multiAmount2.value = ''
+  multiAmount3.value = ''
+  multiTotal.textContent = '0 USDC'
 
   updateConnectionButtons()
   setStatus(message)
@@ -325,6 +387,7 @@ function showConnectedWallet(address: `0x${string}`) {
   walletPanel.classList.remove('hidden')
   paymentLinkPanel.classList.remove('hidden')
   paymentPanel.classList.remove('hidden')
+  multiSendPanel.classList.remove('hidden')
   txPanel.classList.add('hidden')
 
   updateConnectionButtons()
@@ -519,6 +582,158 @@ function loadPaymentRequestFromUrl() {
   }
 }
 
+function updateMultiTotal() {
+  const amounts = [
+    multiAmount1.value.trim(),
+    multiAmount2.value.trim(),
+    multiAmount3.value.trim(),
+  ]
+
+  try {
+    let total = 0n
+    for (const amount of amounts) {
+      if (amount && Number(amount) > 0) {
+        total += parseEther(amount)
+      }
+    }
+    multiTotal.textContent = `${formatEther(total)} USDC`
+  } catch {
+    multiTotal.textContent = 'Invalid amount'
+  }
+}
+
+async function sendMultiPayment() {
+  if (!activeProvider || !connectedAddress) {
+    setStatus('Connect your wallet first.')
+    return
+  }
+
+  const recipients = [
+    multiRecipient1.value.trim(),
+    multiRecipient2.value.trim(),
+    multiRecipient3.value.trim(),
+  ]
+
+  const amounts = [
+    multiAmount1.value.trim(),
+    multiAmount2.value.trim(),
+    multiAmount3.value.trim(),
+  ]
+
+  for (const recipient of recipients) {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+      setStatus('Please enter all 3 valid recipient addresses.')
+      return
+    }
+  }
+
+  for (const amount of amounts) {
+    if (!amount || Number(amount) <= 0) {
+      setStatus('Please enter all 3 valid USDC amounts.')
+      return
+    }
+  }
+
+  multiSendButton.disabled = true
+  multiSendButton.textContent = 'Sending...'
+  txPanel.classList.add('hidden')
+
+  try {
+    await ensureArcNetwork(activeProvider)
+
+    const amount1 = parseEther(amounts[0])
+    const amount2 = parseEther(amounts[1])
+    const amount3 = parseEther(amounts[2])
+    const total = amount1 + amount2 + amount3
+
+    const data = encodeFunctionData({
+      abi: [
+        {
+          type: 'function',
+          name: 'sendToThree',
+          stateMutability: 'payable',
+          inputs: [
+            { name: 'recipient1', type: 'address' },
+            { name: 'amount1', type: 'uint256' },
+            { name: 'recipient2', type: 'address' },
+            { name: 'amount2', type: 'uint256' },
+            { name: 'recipient3', type: 'address' },
+            { name: 'amount3', type: 'uint256' },
+          ],
+          outputs: [],
+        },
+      ],
+      functionName: 'sendToThree',
+      args: [
+        recipients[0] as `0x${string}`,
+        amount1,
+        recipients[1] as `0x${string}`,
+        amount2,
+        recipients[2] as `0x${string}`,
+        amount3,
+      ],
+    })
+
+    setStatus('Confirm the 3-wallet batch payment in your wallet...')
+
+    const txHash = await activeProvider.request({
+      method: 'eth_sendTransaction',
+      params: [
+        {
+          from: connectedAddress,
+          to: MULTISEND_CONTRACT,
+          value: `0x${total.toString(16)}`,
+          data,
+        },
+      ],
+    })
+
+    setStatus('Batch transaction submitted. Waiting for confirmation...')
+
+    await publicClient.waitForTransactionReceipt({
+      hash: txHash as `0x${string}`,
+    })
+
+    txPanel.innerHTML = `
+      <strong>Multi-Send confirmed ✅</strong>
+      <a
+        href="${ARC_EXPLORER}/tx/${txHash}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View batch transaction on ArcScan
+      </a>
+    `
+    txPanel.classList.remove('hidden')
+    setStatus('3-wallet payment confirmed in one Arc transaction.')
+
+    multiRecipient1.value = ''
+    multiRecipient2.value = ''
+    multiRecipient3.value = ''
+    multiAmount1.value = ''
+    multiAmount2.value = ''
+    multiAmount3.value = ''
+    updateMultiTotal()
+
+    await refreshBalance()
+  } catch (error: any) {
+    console.error('Multi-Send error:', error)
+
+    if (error?.code === 4001) {
+      setStatus('Batch transaction cancelled by the user.')
+    } else {
+      setStatus(
+        error?.message
+          ? `Multi-Send failed: ${error.message}`
+          : 'Multi-Send failed. Please try again.'
+      )
+    }
+  } finally {
+    multiSendButton.disabled = false
+    multiSendButton.textContent = 'Send to All — 1 Transaction'
+  }
+}
+
 async function sendPayment() {
   if (!activeProvider || !connectedAddress) {
     setStatus('Connect your wallet first.')
@@ -614,6 +829,10 @@ disconnectButton.addEventListener('click', disconnectWallet)
 createPaymentLinkButton.addEventListener('click', createPaymentLink)
 copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
+multiSendButton.addEventListener('click', sendMultiPayment)
+multiAmount1.addEventListener('input', updateMultiTotal)
+multiAmount2.addEventListener('input', updateMultiTotal)
+multiAmount3.addEventListener('input', updateMultiTotal)
 
 loadPaymentRequestFromUrl()
 
