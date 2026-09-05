@@ -13,29 +13,31 @@ ArcPay demonstrates how users can connect an EVM-compatible wallet, view their U
 
 
 
-\## Features
+## Features
 
 
 
-\- Connect MetaMask wallet
+- Connect MetaMask wallet
 
-\- Automatic Arc Testnet network detection
+- Automatic Arc Testnet network detection
 
-\- Live USDC balance
+- Live USDC balance
 
-\- Send USDC to any Arc Testnet address
+- Send USDC to any Arc Testnet address
 
-\- MetaMask transaction confirmation
+- MetaMask transaction confirmation
 
-\- Onchain transaction tracking
+- Onchain transaction tracking
 
-\- Direct ArcScan transaction link
+- Direct ArcScan transaction link
 
-\- Responsive web interface
+- Responsive web interface
+- Multi-Send: send different USDC amounts to 3 recipients in one transaction
+- Smart-contract powered batch payments
 
 
 
-\## Built on Arc
+## Built on Arc
 
 
 
@@ -43,11 +45,11 @@ ArcPay is built specifically to explore payments on Arc.
 
 
 
-\*\*Network:\*\* Arc Testnet  
+**Network:** Arc Testnet  
 
-\*\*Chain ID:\*\* 5042002  
+**Chain ID:** 5042002  
 
-\*\*Native Gas Token:\*\* USDC
+**Native Gas Token:** USDC
 
 
 
@@ -55,43 +57,44 @@ The application communicates directly with Arc Testnet through its RPC endpoint 
 
 
 
-\## Tech Stack
+## Tech Stack
 
 
 
-\- TypeScript
+- TypeScript
 
-\- Vite
+- Vite
 
-\- viem
+- viem
 
-\- MetaMask
+- MetaMask
 
-\- Arc Testnet
+- Arc Testnet
 
-\- Node.js
-
-
-
-\## How It Works
+- Node.js
+- Solidity (ArcPayMultiSend)
 
 
 
-1\. User connects a MetaMask wallet.
+## How It Works
 
-2\. ArcPay verifies that the wallet is connected to Arc Testnet.
 
-3\. The application reads the wallet's live USDC balance.
 
-4\. User enters a recipient address and payment amount.
+1. User connects a MetaMask wallet.
 
-5\. MetaMask requests transaction approval.
+2. ArcPay verifies that the wallet is connected to Arc Testnet.
 
-6\. The payment is submitted to Arc Testnet.
+3. The application reads the wallet's live USDC balance.
 
-7\. ArcPay waits for onchain confirmation.
+4. User enters a recipient address and payment amount.
 
-8\. The confirmed transaction can be viewed on ArcScan.
+5. MetaMask requests transaction approval.
+
+6. The payment is submitted to Arc Testnet.
+
+7. ArcPay waits for onchain confirmation.
+
+8. The confirmed transaction can be viewed on ArcScan.
 
 
 
@@ -145,7 +148,52 @@ Payment Link and QR infrastructure remain in place so broader mobile wallet supp
 These tests are part of ArcPay's ongoing development and interoperability work across the Arc ecosystem.
 
 
-\## Run Locally
+
+## Multi-Send — Verified on Arc Testnet
+
+ArcPay includes a smart-contract powered **Multi-Send** flow for distributing different native USDC amounts to three recipients with **one wallet confirmation and one onchain transaction**.
+
+**ArcPayMultiSend contract:**  
+`0xAB147D7269dAe842D01A0985Ae62208A1A4f0476`
+
+### One Transaction, Three Recipients
+
+The verified test below sent a total of **9 USDC**:
+
+- Wallet 1 — **3 USDC**
+- Wallet 2 — **4 USDC**
+- Wallet 3 — **2 USDC**
+- Total — **9 USDC**
+- Contract method — `sendToThree`
+
+### Wallet Confirmation
+
+![ArcPay Multi-Send wallet confirmation](docs/multisend-wallet-confirmation.png)
+
+The wallet receives a single **9 USDC** transaction request interacting with the `ArcPayMultiSend` contract on Arc Testnet.
+
+### ArcPay Confirmation
+
+![ArcPay Multi-Send confirmed](docs/multisend-confirmed.png)
+
+ArcPay waits for the transaction receipt and exposes the confirmed transaction directly on ArcScan.
+
+### Onchain Proof
+
+![ArcPay Multi-Send ArcScan proof](docs/multisend-arcscan-proof.png)
+
+**Verified Multi-Send Transaction:**  
+`0x6db8e2247443def18d03aa1f4d5588925e3a572164cc472ccd84de21870c10f7`
+
+[View verified Multi-Send transaction on ArcScan](https://testnet.arcscan.app/tx/0x6db8e2247443def18d03aa1f4d5588925e3a572164cc472ccd84de21870c10f7)
+
+The ArcScan trace shows one successful `sendToThree` contract call distributing **3 USDC + 4 USDC + 2 USDC** to the three recipients.
+
+**Flow:**  
+Wallet → ArcPay → one wallet approval → ArcPayMultiSend → 3 recipients → Arc Testnet confirmation
+
+
+## Run Locally
 
 
 
