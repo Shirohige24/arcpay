@@ -86,6 +86,16 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </button>
       </div>
 
+      <div id="mobileWalletLaunchers" class="wallet-buttons hidden">
+        <button id="openMetaMaskButton" class="primary-button">
+          Open in MetaMask
+        </button>
+
+        <button id="openTrustWalletButton" class="primary-button">
+          Open in Trust Wallet
+        </button>
+      </div>
+
       <div id="walletPanel" class="wallet-panel hidden">
         <div>
           <span class="label">Connected Wallet</span>
@@ -177,6 +187,15 @@ const connectButton =
 const walletConnectButton =
   document.querySelector<HTMLButtonElement>('#walletConnectButton')!
 
+const mobileWalletLaunchers =
+  document.querySelector<HTMLDivElement>('#mobileWalletLaunchers')!
+
+const openMetaMaskButton =
+  document.querySelector<HTMLButtonElement>('#openMetaMaskButton')!
+
+const openTrustWalletButton =
+  document.querySelector<HTMLButtonElement>('#openTrustWalletButton')!
+
 const disconnectButton =
   document.querySelector<HTMLButtonElement>('#disconnectButton')!
 
@@ -232,6 +251,29 @@ function shortenAddress(address: string) {
 
 function getEthereum() {
   return window.ethereum
+}
+
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
+function updateMobileWalletLaunchers() {
+  const shouldShow =
+    isMobileDevice() &&
+    !getEthereum()
+
+  mobileWalletLaunchers.classList.toggle('hidden', !shouldShow)
+}
+
+function openInMetaMask() {
+  const dappUrl = encodeURIComponent(window.location.href)
+  window.location.href = `https://link.metamask.io/dapp/${dappUrl}`
+}
+
+function openInTrustWallet() {
+  const dappUrl = encodeURIComponent(window.location.href)
+  window.location.href =
+    `https://link.trustwallet.com/open_url?coin_id=60&url=${dappUrl}`
 }
 
 function updateConnectionButtons() {
@@ -758,11 +800,14 @@ async function sendPayment() {
 
 connectButton.addEventListener('click', connectWallet)
 walletConnectButton.addEventListener('click', connectWithWalletConnect)
+openMetaMaskButton.addEventListener('click', openInMetaMask)
+openTrustWalletButton.addEventListener('click', openInTrustWallet)
 disconnectButton.addEventListener('click', disconnectWallet)
 createPaymentLinkButton.addEventListener('click', createPaymentLink)
 copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
 
+updateMobileWalletLaunchers()
 loadPaymentRequestFromUrl()
 
 window.ethereum?.on?.('accountsChanged', async (accounts: string[]) => {
