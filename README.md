@@ -95,6 +95,56 @@ The application communicates directly with Arc Testnet through its RPC endpoint 
 
 
 
+
+
+## Wallet Compatibility & Real-Device Testing
+
+ArcPay is actively tested with real wallets on Arc Testnet.
+
+### Browser Wallet
+
+The injected Browser Wallet flow is currently the recommended and stable connection method.
+
+Tested functionality includes:
+
+- Wallet connection on Arc Testnet
+- Native USDC balance display
+- Native USDC payments
+- Payment Links
+- QR-based payment requests
+- Wallet disconnect and permission handling
+
+ArcPay has also been successfully tested inside the MetaMask Mobile in-app browser on Android, including a real Arc Testnet payment.
+
+### Mobile Wallet Testing
+
+During Android testing, wallet-side compatibility issues were identified in external mobile connection flows.
+
+**MetaMask Mobile**
+
+External WalletConnect/mobile connection attempts could freeze or fail to surface the expected transaction request, while the same ArcPay transaction flow worked through MetaMask Mobile's injected in-app browser provider.
+
+ArcPay test results were contributed to the related open MetaMask Mobile issue:
+
+- [MetaMask Mobile #34615 — WalletConnect does not work on mobile](https://github.com/MetaMask/metamask-mobile/issues/34615)
+
+**Trust Wallet**
+
+ArcPay loaded inside the Trust Wallet Android dApp browser, but the wallet connection did not complete correctly during testing.
+
+The Arc Testnet test case was contributed to the related open Trust Wallet provider issue:
+
+- [Trust Wallet Web3 Provider #763 — Android provider injection issue](https://github.com/TrustWallet/trust-web3-provider/issues/763)
+
+### Current Approach
+
+Until these mobile wallet compatibility issues are resolved, ArcPay keeps the production interface focused on the stable **Browser Wallet** flow.
+
+Payment Link and QR infrastructure remain in place so broader mobile wallet support can be enabled again as compatibility improves.
+
+These tests are part of ArcPay's ongoing development and interoperability work across the Arc ecosystem.
+
+
 \## Run Locally
 
 
