@@ -101,6 +101,36 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </button>
       </div>
 
+      <div id="paymentLinkPanel" class="payment-panel hidden">
+        <h2>Create Payment Link</h2>
+
+        <label for="requestAmount">Amount to Request</label>
+        <input
+          id="requestAmount"
+          type="number"
+          min="0"
+          step="0.000001"
+          placeholder="5"
+        />
+
+        <button id="createPaymentLinkButton" class="primary-button">
+          Create Payment Link
+        </button>
+
+        <div id="paymentLinkResult" class="hidden">
+          <label for="paymentLinkOutput">Your Payment Link</label>
+          <input
+            id="paymentLinkOutput"
+            type="text"
+            readonly
+          />
+
+          <button id="copyPaymentLinkButton" class="primary-button">
+            Copy Link
+          </button>
+        </div>
+      </div>
+
       <div id="paymentPanel" class="payment-panel hidden">
         <h2>Send USDC</h2>
 
@@ -145,11 +175,29 @@ const disconnectButton =
 const sendButton =
   document.querySelector<HTMLButtonElement>('#sendButton')!
 
+const createPaymentLinkButton =
+  document.querySelector<HTMLButtonElement>('#createPaymentLinkButton')!
+
+const copyPaymentLinkButton =
+  document.querySelector<HTMLButtonElement>('#copyPaymentLinkButton')!
+
 const walletPanel =
   document.querySelector<HTMLDivElement>('#walletPanel')!
 
+const paymentLinkPanel =
+  document.querySelector<HTMLDivElement>('#paymentLinkPanel')!
+
+const paymentLinkResult =
+  document.querySelector<HTMLDivElement>('#paymentLinkResult')!
+
 const paymentPanel =
   document.querySelector<HTMLDivElement>('#paymentPanel')!
+
+const requestAmountInput =
+  document.querySelector<HTMLInputElement>('#requestAmount')!
+
+const paymentLinkOutput =
+  document.querySelector<HTMLInputElement>('#paymentLinkOutput')!
 
 const txPanel =
   document.querySelector<HTMLDivElement>('#txPanel')!
@@ -193,11 +241,15 @@ function resetConnectedUi(message = 'Wallet disconnected.') {
   activeConnectionType = null
 
   walletPanel.classList.add('hidden')
+  paymentLinkPanel.classList.add('hidden')
   paymentPanel.classList.add('hidden')
   txPanel.classList.add('hidden')
+  paymentLinkResult.classList.add('hidden')
 
   walletAddress.textContent = '-'
   walletBalance.textContent = '- USDC'
+  requestAmountInput.value = ''
+  paymentLinkOutput.value = ''
   txPanel.innerHTML = ''
 
   updateConnectionButtons()
@@ -265,6 +317,7 @@ function showConnectedWallet(address: `0x${string}`) {
   walletAddress.textContent = shortenAddress(address)
 
   walletPanel.classList.remove('hidden')
+  paymentLinkPanel.classList.remove('hidden')
   paymentPanel.classList.remove('hidden')
   txPanel.classList.add('hidden')
 
@@ -461,6 +514,97 @@ async function disconnectWallet() {
   }
 }
 
+
+function createPaymentLink() {
+  if (!connectedAddress) {
+    setStatus('Connect your wallet first.')
+    return
+  }
+
+  const amount = requestAmountInput.value.trim()
+
+  if (!amount || Number(amount) <= 0) {
+    setStatus('Please enter a valid USDC amount to request.')
+    return
+  }
+
+  const url = new URL(window.location.origin + window.location.pathname)
+  url.searchParams.set('to', connectedAddress)
+  url.searchParams.set('amount', amount)
+
+  paymentLinkOutput.value = url.toString()
+  paymentLinkResult.classList.remove('hidden')
+
+  setStatus('Payment link created. Share it with the person who will pay you.')
+}
+
+async function copyPaymentLink() {
+  const link = paymentLinkOutput.value.trim()
+
+  if (!link) {
+    setStatus('Create a payment link first.')
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(link)
+    copyPaymentLinkButton.textContent = 'Copied!'
+    setStatus('Payment link copied to clipboard.')
+
+    window.setTimeout(() => {
+      copyPaymentLinkButton.textContent = 'Copy Link'
+    }, 1600)
+  } catch {
+    paymentLinkOutput.focus()
+    paymentLinkOutput.select()
+
+    const copied = document.execCommand('copy')
+
+    if (copied) {
+      copyPaymentLinkButton.textContent = 'Copied!'
+      setStatus('Payment link copied to clipboard.')
+
+      window.setTimeout(() => {
+        copyPaymentLinkButton.textContent = 'Copy Link'
+      }, 1600)
+    } else {
+      setStatus('Could not copy automatically. Please copy the link manually.')
+    }
+  }
+}
+
+function loadPaymentRequestFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  const recipient = params.get('to')?.trim() ?? ''
+  const amount = params.get('amount')?.trim() ?? ''
+
+  if (!recipient && !amount) {
+    return
+  }
+
+  const recipientInput =
+    document.querySelector<HTMLInputElement>('#recipient')!
+
+  const amountInput =
+    document.querySelector<HTMLInputElement>('#amount')!
+
+  if (/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+    recipientInput.value = recipient
+  }
+
+  if (amount && Number(amount) > 0) {
+    amountInput.value = amount
+  }
+
+  if (
+    /^0x[a-fA-F0-9]{40}$/.test(recipient) &&
+    amount &&
+    Number(amount) > 0
+  ) {
+    setStatus('Payment request loaded. Connect your wallet to continue.')
+  }
+}
+
 async function sendPayment() {
   if (!activeProvider || !connectedAddress) {
     setStatus('Connect your wallet first.')
@@ -553,7 +697,11 @@ async function sendPayment() {
 connectButton.addEventListener('click', connectWallet)
 walletConnectButton.addEventListener('click', connectWithWalletConnect)
 disconnectButton.addEventListener('click', disconnectWallet)
+createPaymentLinkButton.addEventListener('click', createPaymentLink)
+copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
+
+loadPaymentRequestFromUrl()
 
 window.ethereum?.on?.('accountsChanged', async (accounts: string[]) => {
   if (activeConnectionType !== 'browser') return
