@@ -104,6 +104,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <button id="signTestButton" class="primary-button">
           Test WalletConnect Signature
         </button>
+
+        <button id="walletConnectDebugButton" class="primary-button">
+          Show WalletConnect Debug
+        </button>
+
+        <pre id="walletConnectDebugOutput" class="hidden"></pre>
       </div>
 
       <div id="paymentLinkPanel" class="payment-panel hidden">
@@ -185,6 +191,12 @@ const disconnectButton =
 
 const signTestButton =
   document.querySelector<HTMLButtonElement>('#signTestButton')!
+
+const walletConnectDebugButton =
+  document.querySelector<HTMLButtonElement>('#walletConnectDebugButton')!
+
+const walletConnectDebugOutput =
+  document.querySelector<HTMLPreElement>('#walletConnectDebugOutput')!
 
 const sendButton =
   document.querySelector<HTMLButtonElement>('#sendButton')!
@@ -270,6 +282,8 @@ function resetConnectedUi(message = 'Wallet disconnected.') {
   paymentQrCode.removeAttribute('src')
   paymentQrCode.classList.add('hidden')
   txPanel.innerHTML = ''
+  walletConnectDebugOutput.textContent = ''
+  walletConnectDebugOutput.classList.add('hidden')
 
   updateConnectionButtons()
   setStatus(message)
@@ -641,6 +655,72 @@ function loadPaymentRequestFromUrl() {
   }
 }
 
+async function showWalletConnectDebug() {
+  if (!activeProvider || !connectedAddress) {
+    setStatus('Connect your wallet first.')
+    return
+  }
+
+  if (activeConnectionType !== 'walletconnect' || !walletConnectProvider) {
+    setStatus('WalletConnect debug is only available for WalletConnect sessions.')
+    return
+  }
+
+  walletConnectDebugButton.disabled = true
+  walletConnectDebugButton.textContent = 'Reading WalletConnect...'
+
+  try {
+    const reportedChainId = await activeProvider.request({
+      method: 'eth_chainId',
+    })
+
+    const providerChainId =
+      walletConnectProvider.chainId ??
+      walletConnectProvider.chainId?.toString?.() ??
+      null
+
+    const session = walletConnectProvider.session ?? null
+    const namespaces = session?.namespaces ?? null
+    const topic = session?.topic ?? null
+    const accounts = walletConnectProvider.accounts ?? null
+
+    const debugInfo = {
+      expectedArcChainIdDecimal: ARC_CHAIN_ID,
+      expectedArcChainIdHex: ARC_CHAIN_HEX,
+      eth_chainId: reportedChainId,
+      providerChainId,
+      accounts,
+      sessionTopic: topic,
+      sessionNamespaces: namespaces,
+    }
+
+    console.log('ArcPay WalletConnect debug:', debugInfo)
+
+    walletConnectDebugOutput.textContent =
+      JSON.stringify(debugInfo, null, 2)
+    walletConnectDebugOutput.classList.remove('hidden')
+
+    if (
+      typeof reportedChainId === 'string' &&
+      reportedChainId.toLowerCase() === ARC_CHAIN_HEX.toLowerCase()
+    ) {
+      setStatus('WalletConnect reports Arc Testnet. Debug details are shown below.')
+    } else {
+      setStatus(`WalletConnect chain mismatch detected: ${reportedChainId}`)
+    }
+  } catch (error: any) {
+    console.error('WalletConnect debug error:', error)
+    setStatus(
+      error?.message
+        ? `WalletConnect debug failed: ${error.message}`
+        : 'WalletConnect debug failed.'
+    )
+  } finally {
+    walletConnectDebugButton.disabled = false
+    walletConnectDebugButton.textContent = 'Show WalletConnect Debug'
+  }
+}
+
 async function testWalletConnectSignature() {
   if (!activeProvider || !connectedAddress) {
     setStatus('Connect your wallet first.')
@@ -778,6 +858,7 @@ connectButton.addEventListener('click', connectWallet)
 walletConnectButton.addEventListener('click', connectWithWalletConnect)
 disconnectButton.addEventListener('click', disconnectWallet)
 signTestButton.addEventListener('click', testWalletConnectSignature)
+walletConnectDebugButton.addEventListener('click', showWalletConnectDebug)
 createPaymentLinkButton.addEventListener('click', createPaymentLink)
 copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
