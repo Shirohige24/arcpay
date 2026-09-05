@@ -100,6 +100,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <button id="disconnectButton" class="disconnect-button">
           Disconnect Wallet
         </button>
+
+        <button id="signTestButton" class="primary-button">
+          Test WalletConnect Signature
+        </button>
       </div>
 
       <div id="paymentLinkPanel" class="payment-panel hidden">
@@ -178,6 +182,9 @@ const walletConnectButton =
 
 const disconnectButton =
   document.querySelector<HTMLButtonElement>('#disconnectButton')!
+
+const signTestButton =
+  document.querySelector<HTMLButtonElement>('#signTestButton')!
 
 const sendButton =
   document.querySelector<HTMLButtonElement>('#sendButton')!
@@ -634,6 +641,50 @@ function loadPaymentRequestFromUrl() {
   }
 }
 
+async function testWalletConnectSignature() {
+  if (!activeProvider || !connectedAddress) {
+    setStatus('Connect your wallet first.')
+    return
+  }
+
+  if (activeConnectionType !== 'walletconnect') {
+    setStatus('This test is only for WalletConnect connections.')
+    return
+  }
+
+  signTestButton.disabled = true
+  signTestButton.textContent = 'Waiting for signature...'
+
+  try {
+    const message = `ArcPay WalletConnect test\n${new Date().toISOString()}`
+
+    setStatus('Approve the test signature in your wallet. No transaction or gas is involved.')
+
+    const signature = await activeProvider.request({
+      method: 'personal_sign',
+      params: [message, connectedAddress],
+    })
+
+    console.log('WalletConnect personal_sign result:', signature)
+    setStatus('WalletConnect signature test passed ✅')
+  } catch (error: any) {
+    console.error('WalletConnect signature test error:', error)
+
+    if (error?.code === 4001) {
+      setStatus('Signature request cancelled by the user.')
+    } else {
+      setStatus(
+        error?.message
+          ? `Signature test failed: ${error.message}`
+          : 'Signature test failed.'
+      )
+    }
+  } finally {
+    signTestButton.disabled = false
+    signTestButton.textContent = 'Test WalletConnect Signature'
+  }
+}
+
 async function sendPayment() {
   if (!activeProvider || !connectedAddress) {
     setStatus('Connect your wallet first.')
@@ -726,6 +777,7 @@ async function sendPayment() {
 connectButton.addEventListener('click', connectWallet)
 walletConnectButton.addEventListener('click', connectWithWalletConnect)
 disconnectButton.addEventListener('click', disconnectWallet)
+signTestButton.addEventListener('click', testWalletConnectSignature)
 createPaymentLinkButton.addEventListener('click', createPaymentLink)
 copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
