@@ -676,6 +676,13 @@ async function sendPayment() {
 
     setStatus('Confirm the payment in your wallet...')
 
+    if (activeConnectionType === 'walletconnect') {
+      setStatus(
+        'WalletConnect payments are temporarily disabled on mobile. Please use Browser Wallet / the wallet in-app browser to send payments.',
+      )
+      return
+    }
+
     const txHash = await activeProvider.request({
       method: 'eth_sendTransaction',
       params: [
