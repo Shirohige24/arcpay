@@ -1,5 +1,4 @@
 import './style.css'
-import { EthereumProvider } from '@walletconnect/ethereum-provider'
 import QRCode from 'qrcode'
 
 import {
@@ -33,10 +32,7 @@ const ARC_CHAIN_HEX = `0x${ARC_CHAIN_ID.toString(16)}`
 const ARC_RPC = 'https://rpc.testnet.arc.network'
 const ARC_EXPLORER = 'https://testnet.arcscan.app'
 
-const WALLETCONNECT_PROJECT_ID =
-  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
 
-let walletConnectProvider: any = null
 
 const arcTestnet = defineChain({
   id: ARC_CHAIN_ID,
@@ -66,7 +62,7 @@ const publicClient = createPublicClient({
 
 let connectedAddress: `0x${string}` | null = null
 let activeProvider: Eip1193Provider | null = null
-let activeConnectionType: 'browser' | 'walletconnect' | null = null
+let activeConnectionType: 'browser' | null = null
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <main class="app-shell">
@@ -79,20 +75,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="wallet-buttons">
         <button id="connectButton" class="primary-button">
           Browser Wallet
-        </button>
-
-        <button id="walletConnectButton" class="primary-button">
-          WalletConnect / Trust Wallet
-        </button>
-      </div>
-
-      <div id="mobileWalletLaunchers" class="wallet-buttons hidden">
-        <button id="openMetaMaskButton" class="primary-button">
-          Open in MetaMask
-        </button>
-
-        <button id="openTrustWalletButton" class="primary-button">
-          Open in Trust Wallet
         </button>
       </div>
 
@@ -184,17 +166,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 const connectButton =
   document.querySelector<HTMLButtonElement>('#connectButton')!
 
-const walletConnectButton =
-  document.querySelector<HTMLButtonElement>('#walletConnectButton')!
 
-const mobileWalletLaunchers =
-  document.querySelector<HTMLDivElement>('#mobileWalletLaunchers')!
 
-const openMetaMaskButton =
-  document.querySelector<HTMLButtonElement>('#openMetaMaskButton')!
 
-const openTrustWalletButton =
-  document.querySelector<HTMLButtonElement>('#openTrustWalletButton')!
 
 const disconnectButton =
   document.querySelector<HTMLButtonElement>('#disconnectButton')!
@@ -253,39 +227,11 @@ function getEthereum() {
   return window.ethereum
 }
 
-function isMobileDevice() {
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-}
-
-function updateMobileWalletLaunchers() {
-  const shouldShow =
-    isMobileDevice() &&
-    !getEthereum()
-
-  mobileWalletLaunchers.classList.toggle('hidden', !shouldShow)
-}
-
-function openInMetaMask() {
-  const dappUrl = encodeURIComponent(window.location.href)
-  window.location.href = `https://link.metamask.io/dapp/${dappUrl}`
-}
-
-function openInTrustWallet() {
-  const dappUrl = encodeURIComponent(window.location.href)
-  window.location.href =
-    `https://link.trustwallet.com/open_url?coin_id=60&url=${dappUrl}`
-}
-
 function updateConnectionButtons() {
   connectButton.textContent =
     activeConnectionType === 'browser'
       ? 'Wallet Connected'
       : 'Browser Wallet'
-
-  walletConnectButton.textContent =
-    activeConnectionType === 'walletconnect'
-      ? 'Wallet Connected'
-      : 'WalletConnect / Trust Wallet'
 }
 
 function resetConnectedUi(message = 'Wallet disconnected.') {
@@ -400,118 +346,12 @@ function readableWalletError(error: any) {
     : 'Wallet connection failed. Please try again.'
 }
 
-async function connectWithWalletConnect() {
-  if (!WALLETCONNECT_PROJECT_ID) {
-    setStatus('WalletConnect Project ID is missing.')
-    return
-  }
-
-  walletConnectButton.disabled = true
-
-  try {
-    setStatus('Opening WalletConnect...')
-
-    walletConnectProvider = await EthereumProvider.init({
-      projectId: WALLETCONNECT_PROJECT_ID,
-      chains: [ARC_CHAIN_ID],
-      showQrModal: true,
-      rpcMap: {
-        [ARC_CHAIN_ID]: ARC_RPC,
-      },
-      metadata: {
-        name: 'ArcPay',
-        description: 'Simple USDC payments powered by Arc.',
-        url: window.location.origin,
-        icons: [],
-      },
-    })
-
-    await walletConnectProvider.connect()
-
-    activeProvider = walletConnectProvider as Eip1193Provider
-    activeConnectionType = 'walletconnect'
-
-    await ensureArcNetwork(activeProvider)
-
-    const accounts =
-      (await activeProvider.request({
-        method: 'eth_accounts',
-      })) as string[]
-
-    const address =
-      (accounts?.[0] ??
-        walletConnectProvider.accounts?.[0]) as `0x${string}` | undefined
-
-    if (!address) {
-      throw new Error('No wallet account returned.')
-    }
-
-    showConnectedWallet(address)
-    await refreshBalance()
-
-    walletConnectProvider.on?.(
-      'accountsChanged',
-      async (accounts: string[]) => {
-        if (!accounts.length) {
-          resetConnectedUi()
-          return
-        }
-
-        const nextAddress = accounts[0] as `0x${string}`
-        showConnectedWallet(nextAddress)
-
-        try {
-          await refreshBalance()
-        } catch {
-          setStatus('Wallet connected, but balance could not be loaded.')
-        }
-      }
-    )
-
-    walletConnectProvider.on?.('chainChanged', async () => {
-      if (
-        activeConnectionType !== 'walletconnect' ||
-        !activeProvider ||
-        !connectedAddress
-      ) {
-        return
-      }
-
-      try {
-        await ensureArcNetwork(activeProvider)
-        await refreshBalance()
-        setStatus('Connected through WalletConnect on Arc Testnet.')
-      } catch (error: any) {
-        setStatus(readableWalletError(error))
-      }
-    })
-
-    walletConnectProvider.on?.('disconnect', () => {
-      resetConnectedUi()
-      walletConnectProvider = null
-    })
-
-    setStatus('Connected through WalletConnect on Arc Testnet.')
-  } catch (error: any) {
-    console.error('WalletConnect error:', error)
-
-    walletConnectProvider = null
-    resetConnectedUi(
-      error?.message
-        ? `WalletConnect error: ${error.message}`
-        : 'WalletConnect connection failed.'
-    )
-  } finally {
-    walletConnectButton.disabled = false
-  }
-}
-
 async function connectWallet() {
   const ethereum = getEthereum()
 
   if (!ethereum) {
     setStatus(
-      'No browser wallet detected. Install MetaMask or another compatible EVM wallet, or use WalletConnect.'
+      'No browser wallet detected. Open ArcPay inside a compatible wallet browser or install an EVM browser wallet.'
     )
     return
   }
@@ -552,7 +392,6 @@ async function connectWallet() {
 async function disconnectWallet() {
   try {
     if (
-      activeConnectionType === 'browser' &&
       activeProvider &&
       typeof activeProvider.request === 'function'
     ) {
@@ -562,38 +401,16 @@ async function disconnectWallet() {
           params: [{ eth_accounts: {} }],
         })
       } catch (error) {
-        console.warn('Wallet permission revoke is not supported by this wallet:', error)
-      }
-    }
-
-    if (
-      activeConnectionType === 'walletconnect' &&
-      walletConnectProvider
-    ) {
-      try {
-        await walletConnectProvider.disconnect()
-      } catch (error) {
-        console.warn('WalletConnect disconnect failed:', error)
+        console.warn(
+          'Wallet permission revoke is not supported by this wallet:',
+          error
+        )
       }
     }
   } finally {
-    activeProvider = null
-    activeConnectionType = null
-    connectedAddress = null
-    walletConnectProvider = null
-
-    walletAddress.textContent = '-'
-    walletBalance.textContent = '-'
-
-    paymentPanel.classList.add('hidden')
-    paymentLinkPanel.classList.add('hidden')
-
-    walletConnectButton.disabled = false
-
-    setStatus('Wallet disconnected.')
+    resetConnectedUi('Wallet disconnected.')
   }
 }
-
 
 async function createPaymentLink() {
   if (!connectedAddress) {
@@ -738,12 +555,6 @@ async function sendPayment() {
 
     setStatus('Confirm the payment in your wallet...')
 
-    if (activeConnectionType === 'walletconnect') {
-      setStatus(
-        'WalletConnect payments are temporarily disabled on mobile. Please use Browser Wallet / the wallet in-app browser to send payments.',
-      )
-      return
-    }
 
     const txHash = await activeProvider.request({
       method: 'eth_sendTransaction',
@@ -799,15 +610,11 @@ async function sendPayment() {
 }
 
 connectButton.addEventListener('click', connectWallet)
-walletConnectButton.addEventListener('click', connectWithWalletConnect)
-openMetaMaskButton.addEventListener('click', openInMetaMask)
-openTrustWalletButton.addEventListener('click', openInTrustWallet)
 disconnectButton.addEventListener('click', disconnectWallet)
 createPaymentLinkButton.addEventListener('click', createPaymentLink)
 copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
 
-updateMobileWalletLaunchers()
 loadPaymentRequestFromUrl()
 
 window.ethereum?.on?.('accountsChanged', async (accounts: string[]) => {
