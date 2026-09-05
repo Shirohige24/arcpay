@@ -101,15 +101,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           Disconnect Wallet
         </button>
 
-        <button id="signTestButton" class="primary-button">
-          Test WalletConnect Signature
-        </button>
-
-        <button id="walletConnectDebugButton" class="primary-button">
-          Show WalletConnect Debug
-        </button>
-
-        <pre id="walletConnectDebugOutput" class="hidden"></pre>
       </div>
 
       <div id="paymentLinkPanel" class="payment-panel hidden">
@@ -188,15 +179,6 @@ const walletConnectButton =
 
 const disconnectButton =
   document.querySelector<HTMLButtonElement>('#disconnectButton')!
-
-const signTestButton =
-  document.querySelector<HTMLButtonElement>('#signTestButton')!
-
-const walletConnectDebugButton =
-  document.querySelector<HTMLButtonElement>('#walletConnectDebugButton')!
-
-const walletConnectDebugOutput =
-  document.querySelector<HTMLPreElement>('#walletConnectDebugOutput')!
 
 const sendButton =
   document.querySelector<HTMLButtonElement>('#sendButton')!
@@ -282,8 +264,6 @@ function resetConnectedUi(message = 'Wallet disconnected.') {
   paymentQrCode.removeAttribute('src')
   paymentQrCode.classList.add('hidden')
   txPanel.innerHTML = ''
-  walletConnectDebugOutput.textContent = ''
-  walletConnectDebugOutput.classList.add('hidden')
 
   updateConnectionButtons()
   setStatus(message)
@@ -336,12 +316,17 @@ async function ensureArcNetwork(provider: Eip1193Provider) {
 async function refreshBalance() {
   if (!connectedAddress) return
 
-  const balance = await publicClient.getBalance({
-    address: connectedAddress,
-  })
+  try {
+    const balance = await publicClient.getBalance({
+      address: connectedAddress,
+    })
 
-  walletBalance.textContent =
-    `${Number(formatEther(balance)).toFixed(4)} USDC`
+    walletBalance.textContent =
+      `${Number(formatEther(balance)).toFixed(4)} USDC`
+  } catch (error) {
+    console.warn('Balance refresh failed:', error)
+    walletBalance.textContent = 'Unavailable'
+  }
 }
 
 function showConnectedWallet(address: `0x${string}`) {
@@ -655,116 +640,6 @@ function loadPaymentRequestFromUrl() {
   }
 }
 
-async function showWalletConnectDebug() {
-  if (!activeProvider || !connectedAddress) {
-    setStatus('Connect your wallet first.')
-    return
-  }
-
-  if (activeConnectionType !== 'walletconnect' || !walletConnectProvider) {
-    setStatus('WalletConnect debug is only available for WalletConnect sessions.')
-    return
-  }
-
-  walletConnectDebugButton.disabled = true
-  walletConnectDebugButton.textContent = 'Reading WalletConnect...'
-
-  try {
-    const reportedChainId = await activeProvider.request({
-      method: 'eth_chainId',
-    })
-
-    const providerChainId =
-      walletConnectProvider.chainId ??
-      walletConnectProvider.chainId?.toString?.() ??
-      null
-
-    const session = walletConnectProvider.session ?? null
-    const namespaces = session?.namespaces ?? null
-    const topic = session?.topic ?? null
-    const accounts = walletConnectProvider.accounts ?? null
-
-    const debugInfo = {
-      expectedArcChainIdDecimal: ARC_CHAIN_ID,
-      expectedArcChainIdHex: ARC_CHAIN_HEX,
-      eth_chainId: reportedChainId,
-      providerChainId,
-      accounts,
-      sessionTopic: topic,
-      sessionNamespaces: namespaces,
-    }
-
-    console.log('ArcPay WalletConnect debug:', debugInfo)
-
-    walletConnectDebugOutput.textContent =
-      JSON.stringify(debugInfo, null, 2)
-    walletConnectDebugOutput.classList.remove('hidden')
-
-    if (
-      typeof reportedChainId === 'string' &&
-      reportedChainId.toLowerCase() === ARC_CHAIN_HEX.toLowerCase()
-    ) {
-      setStatus('WalletConnect reports Arc Testnet. Debug details are shown below.')
-    } else {
-      setStatus(`WalletConnect chain mismatch detected: ${reportedChainId}`)
-    }
-  } catch (error: any) {
-    console.error('WalletConnect debug error:', error)
-    setStatus(
-      error?.message
-        ? `WalletConnect debug failed: ${error.message}`
-        : 'WalletConnect debug failed.'
-    )
-  } finally {
-    walletConnectDebugButton.disabled = false
-    walletConnectDebugButton.textContent = 'Show WalletConnect Debug'
-  }
-}
-
-async function testWalletConnectSignature() {
-  if (!activeProvider || !connectedAddress) {
-    setStatus('Connect your wallet first.')
-    return
-  }
-
-  if (activeConnectionType !== 'walletconnect') {
-    setStatus('This test is only for WalletConnect connections.')
-    return
-  }
-
-  signTestButton.disabled = true
-  signTestButton.textContent = 'Waiting for signature...'
-
-  try {
-    const message = `ArcPay WalletConnect test\n${new Date().toISOString()}`
-
-    setStatus('Approve the test signature in your wallet. No transaction or gas is involved.')
-
-    const signature = await activeProvider.request({
-      method: 'personal_sign',
-      params: [message, connectedAddress],
-    })
-
-    console.log('WalletConnect personal_sign result:', signature)
-    setStatus('WalletConnect signature test passed ✅')
-  } catch (error: any) {
-    console.error('WalletConnect signature test error:', error)
-
-    if (error?.code === 4001) {
-      setStatus('Signature request cancelled by the user.')
-    } else {
-      setStatus(
-        error?.message
-          ? `Signature test failed: ${error.message}`
-          : 'Signature test failed.'
-      )
-    }
-  } finally {
-    signTestButton.disabled = false
-    signTestButton.textContent = 'Test WalletConnect Signature'
-  }
-}
-
 async function sendPayment() {
   if (!activeProvider || !connectedAddress) {
     setStatus('Connect your wallet first.')
@@ -801,7 +676,7 @@ async function sendPayment() {
 
     setStatus('Confirm the payment in your wallet...')
 
-    const transactionRequest = {
+    const txHash = await activeProvider.request({
       method: 'eth_sendTransaction',
       params: [
         {
@@ -810,26 +685,7 @@ async function sendPayment() {
           value: `0x${value.toString(16)}`,
         },
       ],
-    }
-
-    let txHash: string
-
-    if (activeConnectionType === 'walletconnect' && walletConnectProvider) {
-      const session = walletConnectProvider.session
-      const signClient = walletConnectProvider.signer?.client
-
-      if (!session?.topic || !signClient?.request) {
-        throw new Error('WalletConnect session client is not available.')
-      }
-
-      txHash = await signClient.request({
-        topic: session.topic,
-        chainId: `eip155:${ARC_CHAIN_ID}`,
-        request: transactionRequest,
-      })
-    } else {
-      txHash = await activeProvider.request(transactionRequest)
-    }
+    })
 
     setStatus('Transaction submitted. Waiting for confirmation...')
 
@@ -876,8 +732,6 @@ async function sendPayment() {
 connectButton.addEventListener('click', connectWallet)
 walletConnectButton.addEventListener('click', connectWithWalletConnect)
 disconnectButton.addEventListener('click', disconnectWallet)
-signTestButton.addEventListener('click', testWalletConnectSignature)
-walletConnectDebugButton.addEventListener('click', showWalletConnectDebug)
 createPaymentLinkButton.addEventListener('click', createPaymentLink)
 copyPaymentLinkButton.addEventListener('click', copyPaymentLink)
 sendButton.addEventListener('click', sendPayment)
