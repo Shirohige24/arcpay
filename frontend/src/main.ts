@@ -801,7 +801,7 @@ async function sendPayment() {
 
     setStatus('Confirm the payment in your wallet...')
 
-    const txHash = await activeProvider.request({
+    const transactionRequest = {
       method: 'eth_sendTransaction',
       params: [
         {
@@ -810,7 +810,26 @@ async function sendPayment() {
           value: `0x${value.toString(16)}`,
         },
       ],
-    })
+    }
+
+    let txHash: string
+
+    if (activeConnectionType === 'walletconnect' && walletConnectProvider) {
+      const session = walletConnectProvider.session
+      const signClient = walletConnectProvider.signer?.client
+
+      if (!session?.topic || !signClient?.request) {
+        throw new Error('WalletConnect session client is not available.')
+      }
+
+      txHash = await signClient.request({
+        topic: session.topic,
+        chainId: `eip155:${ARC_CHAIN_ID}`,
+        request: transactionRequest,
+      })
+    } else {
+      txHash = await activeProvider.request(transactionRequest)
+    }
 
     setStatus('Transaction submitted. Waiting for confirmation...')
 
